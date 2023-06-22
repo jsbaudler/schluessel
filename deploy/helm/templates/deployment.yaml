@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: schluessel-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: schluessel
+  template:
+    metadata:
+      labels:
+        app: schluessel
+    spec:
+      containers:
+        - name: schluessel
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          ports:
+            - containerPort: {{ .Values.service.targetPort }}
+          envFrom:
+            - configMapRef:
+                name: schluessel-configmap
+            - secretRef:
+                name: schluessel-secret

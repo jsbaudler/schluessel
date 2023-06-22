@@ -1,0 +1,15 @@
+image:
+  repository: ghcr.io/jsbaudler/schluessel
+  tag: latest
+
+environment:
+  HTTP_HOST: "0.0.0.0"
+  HTTP_PORT: "8080"
+
+service:
+  port: 8081
+  targetPort: 8080
+
+secret:
+  tokenValue: "abcdefgh1234"
+  sharedSecret: "shared_secret"

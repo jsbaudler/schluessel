@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: schluessel-configmap
+data:
+  HTTP_HOST: {{ .Values.environment.HTTP_HOST }}
+  HTTP_PORT: {{ .Values.environment.HTTP_PORT }}

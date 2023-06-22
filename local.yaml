@@ -1,0 +1,48 @@
+version: '3'
+
+services:
+  schluessel:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: schluessel_local
+    container_name: schluessel_local
+    environment:
+      PASSWORD: "password"
+      SHARED_SECRET: "shared_secret"
+      HTTP_HOST: "0.0.0.0"
+      HTTP_PORT: "8080"
+    ports:
+      - "8080:8080"
+  schloss_one:
+    depends_on: 
+      - schluessel
+    image: ghcr.io/jsbaudler/schloss:latest
+    container_name: schloss_local_1
+    environment:
+      DOMAIN: ".schloss_one"
+      SERVICES: '[["Service1", "http://127.0.0.1:8081"],["Service2", "http://127.0.0.1:8081"]]'
+      TOKEN_NAME: "test_auth_token"
+      TOKEN_VALUE: "abcdefgh1234"
+      SHARED_SECRET: "shared_secret"
+      SCHLUESSEL_ENDPOINT: "http://schluessel:8080/register"
+      HTTP_HOST: "0.0.0.0"
+      HTTP_PORT: "8080"
+    ports:
+      - "8081:8080"
+  schloss_two:
+    depends_on: 
+      - schluessel
+    image: ghcr.io/jsbaudler/schloss:latest
+    container_name: schloss_local_2
+    environment:
+      DOMAIN: ".schloss_two"
+      SERVICES: '[["Service3", "http://127.0.0.1:8082"],["Service4", "http://127.0.0.1:8082"]]'
+      TOKEN_NAME: "test_auth_token"
+      TOKEN_VALUE: "abcdefgh1234"
+      SHARED_SECRET: "shared_secret"
+      SCHLUESSEL_ENDPOINT: "http://schluessel:8080/register"
+      HTTP_HOST: "0.0.0.0"
+      HTTP_PORT: "8080"
+    ports:
+      - "8082:8080"
