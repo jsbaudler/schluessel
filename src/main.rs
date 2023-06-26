@@ -1,4 +1,5 @@
-use actix_web::{post, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{middleware::Logger, post, web, App, HttpResponse, HttpServer, Responder};
+use env_logger::Env;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
@@ -8,24 +9,57 @@ async fn index() -> impl Responder {
     let rendered = r#"
         <!DOCTYPE html>
         <html lang="en">
+
         <head>
             <meta charset="UTF-8">
-            <title>Schluessel</title>
-            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+            <title>🔑 Schluessel 🔑</title>
+            <style>
+                body {
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    height: 100vh;
+                }
+
+                .form-signin {
+                    width: 400px;
+                    text-align: center;
+                }
+
+                .form-control {
+                    margin-bottom: 20px;
+                    width: 392px;
+                    font-size: 20px;
+                }
+
+                .btn {
+                    width: 100%;
+                    color: white;
+                    background-color: #007bff;
+                    border: none;
+                    padding: 20px;
+                    font-size: 20px;
+                }
+
+                .btn:hover {
+                    background-color: #0056b3;
+                }
+            </style>
         </head>
-        <body class="d-flex justify-content-center align-items-center vh-100">
+
+        <body>
             <form action="/authenticate" method="post" class="form-signin">
-                <h1 class="h3 mb-3 font-weight-normal">Please sign in</h1>
+                <h1>This is Schluessel 🔑</h1>
                 <div class="form-group">
-                    <label for="password" class="sr-only">Password</label>
-                    <input type="password" id="password" name="password" class="form-control" placeholder="Password" required>
+                    <input type="password" id="password" name="password" class="form-control" placeholder="Password"
+                        required>
                 </div>
-                <button class="btn btn-lg btn-primary btn-block" type="submit">Sign in</button>
+                <button class="btn" type="submit">Sign in</button>
             </form>
         </body>
+
         </html>
     "#;
-
     HttpResponse::Ok().body(rendered)
 }
 
@@ -53,7 +87,7 @@ async fn authenticate(form: web::Form<AuthRequest>, data: web::Data<AppState>) -
         let instances = data.registered_schloss_instances.lock().unwrap();
 
         // Generate the HTML content dynamically
-        let rendered = generate_services_html(&*instances);
+        let rendered = generate_services_html(&instances);
 
         HttpResponse::Ok()
             .content_type("text/html; charset=utf-8")
@@ -73,6 +107,8 @@ async fn register_schloss(
     // Store the Schloss instance and its services in the in-memory store
     instances.insert(form.domain.clone(), form.services.clone());
 
+    log::info!("Domain: {0:?} with {1:?} successfully registered.", form.domain, form.services);
+
     HttpResponse::Ok().json(form.into_inner()) // Return the registered instance as a response
 }
 
@@ -87,42 +123,61 @@ fn generate_services_html(service_map: &HashMap<String, Vec<(String, String)>>) 
         <head>
             <meta charset="UTF-8">
             <title>Services</title>
-            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+            <style>
+                .service {
+                    width: 20%;
+                    box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
+                    padding: 10px;
+                    margin: 10px;
+                    display: inline-block;
+                    vertical-align: top;
+                }
+
+                .service h3 {
+                    margin: 5px 0 15px 0;
+                }
+
+                .service button {
+                    width: 100%;
+                    color: white;
+                    background-color: #007bff;
+                    border: none;
+                    padding: 20px;
+                    font-size: 20px;
+                    text-align: center;
+                }
+
+                .service button:hover {
+                    background-color: #0056b3;
+                }
+            </style>
         </head>
-        <body class="container pt-5">
-            <h1 class="mb-4">Services</h1>
-            <div class="row">
+        <body>
+            <h1>Services</h1>
     "#,
     );
 
     for (domain, services) in service_map {
-        html.push_str(&format!("<h2 class='col-12 mt-5'>{}</h2>", domain));
+        html.push_str(&format!("<h2>{}</h2>", domain));
 
         for (service_name, service_url) in services {
+            let action_url = format!("{}/generate_auth_cookie", service_url);
             html.push_str(&format!(
-                r#"<div class="col-md-4">
-                    <div class="card mb-4 shadow-sm">
-                        <div class="card-body">
-                            <form action="{}" method="post" target="_blank">
-                                <input type="hidden" name="shared_secret" value="{}">
-                                <input type="hidden" name="service_url" value="{}">
-                                <h5 class="card-title">{}</h5>
-                                <button type="submit" class="btn btn-primary">Go to Service</button>
-                            </form>
-                        </div>
-                    </div>
+                r#"<div class="service">
+                    <form action="{}" method="post" target="_blank">
+                        <input type="hidden" name="shared_secret" value="{}">
+                        <input type="hidden" name="service_url" value="{}">
+                        <h3>{}</h3>
+                        <button type="submit">Go to Service</button>
+                    </form>
                 </div>"#,
-                format!("{}/generate_auth_cookie", service_url),
-                shared_secret,
-                service_url,
-                service_name
+                action_url, shared_secret, service_url, service_name
             ));
         }
     }
 
     html.push_str(
         r#"
-            </div>
         </body>
         </html>
     "#,
@@ -133,17 +188,31 @@ fn generate_services_html(service_map: &HashMap<String, Vec<(String, String)>>) 
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
+    // initialize logging
+    env_logger::init_from_env(Env::default().default_filter_or("info"));
+
     let data = web::Data::new(AppState {
         registered_schloss_instances: Mutex::new(HashMap::new()),
     });
 
+    // read all the env vars
     let http_host = env::var("HTTP_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
     let http_port = env::var("HTTP_PORT").unwrap_or_else(|_| "8080".to_string());
 
     let bind_address = format!("{}:{}", http_host, http_port);
 
+    // set the schluessel version
+    let schluessel_version = env::var("SCHLUESSEL_VERSION")
+    .or_else(|_| env::var("CARGO_PKG_VERSION"))
+    .unwrap_or_else(|_| "0.0.0-dev (not set)".to_string());
+
+    // print out some basic info about the server
+    log::info!("Starting Schluessel v{schluessel_version}");
+    log::info!("Serving at {http_host}:{http_port}");
+
     HttpServer::new(move || {
         App::new()
+            .wrap(Logger::default())
             .app_data(data.clone())
             .route("/", web::get().to(index))
             .service(authenticate)
